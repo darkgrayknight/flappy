@@ -15,6 +15,8 @@ export interface Colors {
 
 export interface Settings {
 	pipeGap: number;
+	// Steps per second: how fast the pipes move and the flyer falls.
+	speed: number;
 	theme: Theme;
 	// Each theme keeps its own colors; the panel edits the active theme's.
 	colors: Record<Theme, Colors>;
@@ -22,14 +24,13 @@ export interface Settings {
 }
 
 export const pipeGapRange = { min: 2, max: 16 };
+export const speedRange = { min: 2, max: 12 };
 
 interface SettingsPanelProps {
 	settings: Settings;
 	flyers: Flyer[];
-	started: boolean;
 	onChange: (changes: Partial<Settings>) => void;
 	onAddFlyer: (flyer: Flyer) => void;
-	onResume: () => void;
 }
 
 const panelStyle: CSSProperties = {
@@ -49,10 +50,8 @@ const rowStyle: CSSProperties = {
 export function SettingsPanel({
 	settings,
 	flyers,
-	started,
 	onChange,
 	onAddFlyer,
-	onResume,
 }: SettingsPanelProps) {
 	const colors = settings.colors[settings.theme];
 	const { towerColors } = colors;
@@ -94,7 +93,7 @@ export function SettingsPanel({
 
 	return (
 		<fieldset style={panelStyle} onClick={(e) => e.stopPropagation()}>
-			<legend>Paused &mdash; Settings</legend>
+			<legend>Settings</legend>
 			<label style={rowStyle}>
 				Pipe gap:
 				<input
@@ -105,6 +104,17 @@ export function SettingsPanel({
 					onChange={(e) => onChange({ pipeGap: Number(e.target.value) })}
 				/>
 				<output>{settings.pipeGap}</output>
+			</label>
+			<label style={rowStyle}>
+				Speed:
+				<input
+					type="range"
+					min={speedRange.min}
+					max={speedRange.max}
+					value={settings.speed}
+					onChange={(e) => onChange({ speed: Number(e.target.value) })}
+				/>
+				<output>{settings.speed}</output>
 			</label>
 			<label style={rowStyle}>
 				Background:
@@ -162,9 +172,6 @@ export function SettingsPanel({
 				</label>
 				<button type="submit">Add flyer</button>
 			</form>
-			<button type="button" onClick={onResume}>
-				{started ? "Resume" : "Start"}
-			</button>
 		</fieldset>
 	);
 }

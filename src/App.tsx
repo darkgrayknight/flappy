@@ -11,6 +11,13 @@ const flyerImage = (file: string) => `url('${file}') center / contain no-repeat`
 
 const cellBorders: Record<Theme, string> = { light: "black", dark: "#555" };
 
+const controlsStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: 12,
+	marginTop: 8,
+};
+
 const defaults = {
 	bird: {
 		height: 10,
@@ -22,6 +29,7 @@ const defaults = {
 	cell: { height: 30, width: 30 },
 	settings: {
 		pipeGap: 4,
+		speed: 5,
 		theme: "light",
 		colors: {
 			light: {
@@ -196,19 +204,29 @@ class Game extends Component<Record<string, never>, GameState> {
 	}
 
 	componentDidMount() {
-		this.timerID = setInterval(this.tick, 200);
+		this.startTimer();
 		this.applyTheme();
+		window.addEventListener("keydown", this.handleKey);
+		window.addEventListener("keyup", this.handleKey);
 	}
 
-	componentDidUpdate() {
+	componentDidUpdate(_: unknown, prevState: GameState) {
+		if (prevState.settings.speed !== this.state.settings.speed) {
+			this.startTimer();
+		}
 		this.applyTheme();
 	}
 
 	componentWillUnmount() {
-		if (this.timerID !== undefined) {
-			clearInterval(this.timerID);
-		}
+		clearInterval(this.timerID);
+		window.removeEventListener("keydown", this.handleKey);
+		window.removeEventListener("keyup", this.handleKey);
 		document.body.classList.remove("dark");
+	}
+
+	private startTimer() {
+		clearInterval(this.timerID);
+		this.timerID = setInterval(this.tick, 1000 / this.state.settings.speed);
 	}
 
 	// The theme covers the whole page, not just the game.
@@ -359,6 +377,19 @@ class Game extends Component<Record<string, never>, GameState> {
 		}));
 	};
 
+	// Space flaps like a click while the game is running. Otherwise it's left
+	// alone, so it can still type in the settings or press a focused button.
+	private handleKey = (event: KeyboardEvent) => {
+		if (event.key !== " " || this.state.paused || this.state.crashed) {
+			return;
+		}
+		// Keep space from scrolling the page or pressing a focused button.
+		event.preventDefault();
+		if (event.type === "keydown" && !event.repeat) {
+			this.handleClick();
+		}
+	};
+
 	private toggleTheme = (event: MouseEvent) => {
 		event.stopPropagation();
 		this.handleSettingsChange({
@@ -366,52 +397,56 @@ class Game extends Component<Record<string, never>, GameState> {
 		});
 	};
 
-	private pause = (event: MouseEvent) => {
+	private togglePause = (event: MouseEvent) => {
 		event.stopPropagation();
-		this.setState({ paused: true });
-	};
-
-	private resume = () => {
-		this.setState({ paused: false, started: true });
+		this.setState((state) => ({ paused: !state.paused, started: true }));
 	};
 
 	private restart = () => {
 		this.setState((state) => ({
 			crashed: false,
+			paused: false,
+			started: true,
 			score: 0,
 			highScore: Math.max(state.highScore, state.score),
 		}));
 	};
 
+	private pauseLabel() {
+		if (!this.state.paused) {
+			return "Pause";
+		}
+		return this.state.started ? "Resume" : "Start";
+	}
+
 	render() {
 		return (
 			<div onClick={this.handleClick}>
-				<button onClick={this.toggleTheme}>
-					{this.state.settings.theme === "dark" ? "Light mode" : "Dark mode"}
-				</button>
-				{this.state.paused ? (
-					<SettingsPanel
-						settings={this.state.settings}
-						flyers={this.state.flyers}
-						started={this.state.started}
-						onChange={this.handleSettingsChange}
-						onAddFlyer={this.handleAddFlyer}
-						onResume={this.resume}
-					/>
-				) : (
-					<button onClick={this.pause}>Pause</button>
-				)}
 				<Grid grid={this.makeGrid()} theme={this.state.settings.theme} />
-				{this.state.crashed ? (
-					<button onClick={this.restart}>Click to Restart</button>
-				) : (
-					this.state.score
-				)}
+				<div style={controlsStyle}>
+					<button onClick={this.togglePause}>{this.pauseLabel()}</button>
+					{this.state.crashed ? (
+						<button onClick={this.restart}>Click to Restart</button>
+					) : (
+						this.state.score
+					)}
+					<button onClick={this.toggleTheme}>
+						{this.state.settings.theme === "dark" ? "Light mode" : "Dark mode"}
+					</button>
+				</div>
 				<p>
 					{this.state.highScore > 0
 						? `High Score: ${this.state.highScore}`
 						: null}
 				</p>
+				{this.state.paused && (
+					<SettingsPanel
+						settings={this.state.settings}
+						flyers={this.state.flyers}
+						onChange={this.handleSettingsChange}
+						onAddFlyer={this.handleAddFlyer}
+					/>
+				)}
 			</div>
 		);
 	}

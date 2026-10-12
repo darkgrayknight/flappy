@@ -16,6 +16,14 @@ describe('App', () => {
     vi.restoreAllMocks();
   });
 
+  const flyerLayer = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>('[style*="url("]')!;
+  const flyerRow = (container: HTMLElement) => {
+    const row = flyerLayer(container).parentElement!.parentElement!;
+    return [...row.parentElement!.children].indexOf(row);
+  };
+  const settingsPanel = () => screen.queryByRole('group', { name: 'Settings' });
+
   it('renders the game and initial score', () => {
     render(<App />);
     expect(screen.getByText('0')).toBeInTheDocument();
@@ -31,13 +39,61 @@ describe('App', () => {
   it('runs after Start and can be paused again', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(settingsPanel()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(200));
     expect(screen.getByText('1')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText('1')).toBeInTheDocument();
+    expect(settingsPanel()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
+  });
+
+  it('shows the game first, then the controls, then the settings', () => {
+    const { container } = render(<App />);
+    const grid = (container.firstChild as HTMLElement).firstElementChild!;
+    const start = screen.getByRole('button', { name: 'Start' });
+    expect(grid).toContainElement(flyerLayer(container));
+    expect(grid.compareDocumentPosition(start)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(start.compareDocumentPosition(settingsPanel()!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('runs faster at a higher speed', () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/Speed/), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  describe('spacebar', () => {
+    const space = { key: ' ' };
+
+    it('flaps like a click while running', () => {
+      const { container } = render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      // false means the default (scrolling, pressing a focused button) was prevented.
+      expect(fireEvent.keyDown(window, space)).toBe(false);
+      expect(fireEvent.keyUp(window, space)).toBe(false);
+      expect(flyerRow(container)).toBe(8);
+    });
+
+    it('flaps once when held down', () => {
+      const { container } = render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      fireEvent.keyDown(window, space);
+      fireEvent.keyDown(window, { ...space, repeat: true });
+      expect(flyerRow(container)).toBe(8);
+    });
+
+    it('is left alone while paused', () => {
+      const { container } = render(<App />);
+      expect(fireEvent.keyDown(window, space)).toBe(true);
+      expect(flyerRow(container)).toBe(10);
+    });
   });
 
   it('updates the pipe gap', () => {
@@ -83,6 +139,18 @@ describe('App', () => {
       expect(restartButton()).toBeInTheDocument();
     });
 
+    it('restarts from the settings after a crash', () => {
+      const game = start();
+      for (let i = 0; i < 6; i++) {
+        fireEvent.click(game); // Off the top.
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      expect(settingsPanel()).toBeInTheDocument();
+      fireEvent.click(restartButton()!);
+      expect(settingsPanel()).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    });
+
     it('crashes when flapping above the top of the grid', () => {
       const game = start();
       for (let i = 0; i < 5; i++) {
@@ -107,12 +175,6 @@ describe('App', () => {
   });
 
   describe('dark mode', () => {
-    const flyerLayer = (container: HTMLElement) =>
-      container.querySelector<HTMLElement>('[style*="url("]')!;
-    const flyerRow = (container: HTMLElement) => {
-      const row = flyerLayer(container).parentElement!.parentElement!;
-      return [...row.parentElement!.children].indexOf(row);
-    };
     const backgroundPicker = () => screen.getByLabelText('Background:') as HTMLInputElement;
 
     it('starts in light mode with the flyer as-is', () => {
