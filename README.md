@@ -27,6 +27,7 @@ npm start
 ## Project structure
 
 - `src/App.tsx` contains the game.
+- `src/Settings.tsx` contains the settings panel shown while the game is paused.
 - `src/main.tsx` is the React entry point.
 - `src/App.test.tsx` contains the game render test.
 - `vite.config.ts` configures Vite and the React plugin.
