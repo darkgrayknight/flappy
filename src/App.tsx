@@ -1,12 +1,15 @@
-import { Component, type CSSProperties } from "react";
+import { Component, type ChangeEvent, type CSSProperties } from "react";
 import "./App.css";
 
-const backgrounds = [
-	{ name: "bird", start: "bird-down.png", end: "bird-up.png" },
-	{ name: "pterodactyl", start: "flyer-close.png", end: "flyer-open.png" },
+const flyers = [
+	{ name: "Pterodactyl", start: "flyer-close.png", end: "flyer-open.png" },
+	{ name: "Bird", start: "bird-down.png", end: "bird-up.png" },
 ];
 
 const backColor = "#c9d7e8";
+
+const flyerImage = (file: string) =>
+	`url('${file}') center / contain no-repeat ${backColor}`;
 const towerColors = [
 	"darkgreen",
 	"green",
@@ -18,8 +21,6 @@ const towerColors = [
 
 const defaults = {
 	bird: {
-		background: `url('${backgrounds[1].start}') ${backColor}`,
-		backgroundUp: `url('${backgrounds[1].end}') ${backColor}`,
 		height: 10,
 		position: 2,
 		boost: 2,
@@ -48,6 +49,7 @@ interface GameState {
 	crashed: boolean;
 	score: number;
 	highScore: number;
+	flyerIndex: number;
 }
 
 interface GridCellProps {
@@ -115,7 +117,7 @@ class Game extends Component<Record<string, never>, GameState> {
 			position: defaults.bird.position,
 		};
 		const towers = this.makeTowers();
-		grid[bird.height][bird.position] = defaults.bird.background;
+		grid[bird.height][bird.position] = flyerImage(flyers[0].start);
 		this.state = {
 			grid,
 			bird,
@@ -123,6 +125,7 @@ class Game extends Component<Record<string, never>, GameState> {
 			crashed: false,
 			score: 0,
 			highScore: 0,
+			flyerIndex: 0,
 		};
 	}
 
@@ -156,7 +159,9 @@ class Game extends Component<Record<string, never>, GameState> {
 				}
 			}
 
-			grid[bird.height][bird.position] = defaults.bird.backgroundUp;
+			grid[bird.height][bird.position] = flyerImage(
+				flyers[this.state.flyerIndex].end,
+			);
 			const score = this.state.score + 1;
 			const highScore =
 				crashed && score > this.state.highScore
@@ -228,8 +233,18 @@ class Game extends Component<Record<string, never>, GameState> {
 		const grid = this.state.grid.map((row) => [...row]);
 		grid[bird.height][bird.position] = defaults.cell.color;
 		bird.height -= defaults.bird.boost;
-		grid[bird.height][bird.position] = defaults.bird.background;
+		grid[bird.height][bird.position] = flyerImage(
+			flyers[this.state.flyerIndex].start,
+		);
 		this.setState({ bird, grid });
+	};
+
+	private handleFlyerChange = (event: ChangeEvent<HTMLSelectElement>) => {
+		const flyerIndex = Number(event.target.value);
+		const { bird } = this.state;
+		const grid = this.state.grid.map((row) => [...row]);
+		grid[bird.height][bird.position] = flyerImage(flyers[flyerIndex].start);
+		this.setState({ flyerIndex, grid });
 	};
 
 	private restart = () => {
@@ -243,6 +258,19 @@ class Game extends Component<Record<string, never>, GameState> {
 	render() {
 		return (
 			<div onClick={this.handleClick}>
+				<label onClick={(e) => e.stopPropagation()}>
+					Flyer:{" "}
+					<select
+						value={this.state.flyerIndex}
+						onChange={this.handleFlyerChange}
+					>
+						{flyers.map((flyer, index) => (
+							<option key={flyer.name} value={index}>
+								{flyer.name}
+							</option>
+						))}
+					</select>
+				</label>
 				<Grid grid={this.state.grid} />
 				{this.state.crashed ? (
 					<button onClick={this.restart}>Click to Restart</button>
