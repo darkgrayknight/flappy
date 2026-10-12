@@ -1,14 +1,15 @@
 import { Component, type CSSProperties, type MouseEvent } from "react";
 import "./App.css";
-import { type Flyer, type Settings, SettingsPanel } from "./Settings";
+import { type Flyer, type Settings, SettingsPanel, type Theme } from "./Settings";
 
 const defaultFlyers: Flyer[] = [
 	{ name: "Pterodactyl", start: "flyer-close.png", end: "flyer-open.png" },
 	{ name: "Bird", start: "bird-down.png", end: "bird-up.png" },
 ];
 
-const flyerImage = (file: string, backColor: string) =>
-	`url('${file}') center / contain no-repeat ${backColor}`;
+const flyerImage = (file: string) => `url('${file}') center / contain no-repeat`;
+
+const cellBorders: Record<Theme, string> = { light: "black", dark: "#555" };
 
 const defaults = {
 	bird: {
@@ -21,15 +22,31 @@ const defaults = {
 	cell: { height: 30, width: 30 },
 	settings: {
 		pipeGap: 4,
-		backColor: "#c9d7e8",
-		towerColors: [
-			"#006400", // darkgreen
-			"#008000", // green
-			"#228b22", // forestgreen
-			"#2f4f4f", // darkslategray
-			"#2e8b57", // seagreen
-			"#191970", // midnightblue
-		],
+		theme: "light",
+		colors: {
+			light: {
+				backColor: "#c9d7e8",
+				towerColors: [
+					"#006400", // darkgreen
+					"#008000", // green
+					"#228b22", // forestgreen
+					"#2f4f4f", // darkslategray
+					"#2e8b57", // seagreen
+					"#191970", // midnightblue
+				],
+			},
+			dark: {
+				backColor: "#1e2633",
+				towerColors: [
+					"#3cb371", // mediumseagreen
+					"#32cd32", // limegreen
+					"#66cdaa", // mediumaquamarine
+					"#9acd32", // yellowgreen
+					"#20b2aa", // lightseagreen
+					"#6495ed", // cornflowerblue
+				],
+			},
+		},
 		flyerIndex: 0,
 	} satisfies Settings,
 };
@@ -60,16 +77,24 @@ interface GameState {
 	flyers: Flyer[];
 }
 
+interface Cell {
+	color: string;
+	image?: string;
+}
+
 interface GridCellProps {
-	cell: string;
+	cell: Cell;
+	theme: Theme;
 }
 
 interface GridRowProps {
-	row: string[];
+	row: Cell[];
+	theme: Theme;
 }
 
 interface GridProps {
-	grid: string[][];
+	grid: Cell[][];
+	theme: Theme;
 }
 
 function rand(): number;
@@ -109,34 +134,40 @@ function towerColor(tower: Tower, towerColors: string[]) {
 	return towerColors[Math.floor(tower.colorSeed * towerColors.length)];
 }
 
-function GridCell({ cell }: GridCellProps) {
+function GridCell({ cell, theme }: GridCellProps) {
 	const style: CSSProperties = {
 		width: defaults.cell.width,
 		height: defaults.cell.height,
-		border: "1px solid black",
-		background: cell,
+		border: `1px solid ${cellBorders[theme]}`,
+		background: cell.color,
+	};
+	// The image sits on its own layer so inverting it leaves the cell color alone.
+	const imageStyle: CSSProperties = {
+		height: "100%",
+		background: cell.image,
+		filter: theme === "dark" ? "invert(1)" : undefined,
 	};
 
-	return <div style={style} />;
+	return <div style={style}>{cell.image && <div style={imageStyle} />}</div>;
 }
 
-function GridRow({ row }: GridRowProps) {
+function GridRow({ row, theme }: GridRowProps) {
 	const style: CSSProperties = { display: "flex" };
 
 	return (
 		<div style={style}>
 			{row.map((cell, index) => (
-				<GridCell key={index} cell={cell} />
+				<GridCell key={index} cell={cell} theme={theme} />
 			))}
 		</div>
 	);
 }
 
-function Grid({ grid }: GridProps) {
+function Grid({ grid, theme }: GridProps) {
 	return (
 		<div>
 			{grid.map((row, index) => (
-				<GridRow key={index} row={row} />
+				<GridRow key={index} row={row} theme={theme} />
 			))}
 		</div>
 	);
@@ -166,12 +197,23 @@ class Game extends Component<Record<string, never>, GameState> {
 
 	componentDidMount() {
 		this.timerID = setInterval(this.tick, 200);
+		this.applyTheme();
+	}
+
+	componentDidUpdate() {
+		this.applyTheme();
 	}
 
 	componentWillUnmount() {
 		if (this.timerID !== undefined) {
 			clearInterval(this.timerID);
 		}
+		document.body.classList.remove("dark");
+	}
+
+	// The theme covers the whole page, not just the game.
+	private applyTheme() {
+		document.body.classList.toggle("dark", this.state.settings.theme === "dark");
 	}
 
 	// Uses an updater so ticks that fire before a render still build on each other.
@@ -251,26 +293,29 @@ class Game extends Component<Record<string, never>, GameState> {
 
 	private makeGrid() {
 		const { bird, towers, flapping, settings, flyers } = this.state;
+		const colors = settings.colors[settings.theme];
 		const grid = Array.from({ length: defaults.grid.height }, () =>
-			new Array<string>(defaults.grid.width).fill(settings.backColor),
+			Array.from(
+				{ length: defaults.grid.width },
+				(): Cell => ({ color: colors.backColor }),
+			),
 		);
 
 		for (const tower of towers) {
 			if (tower.position >= defaults.grid.width) {
 				continue;
 			}
-			const color = towerColor(tower, settings.towerColors);
+			const color = towerColor(tower, colors.towerColors);
 			for (let j = 0; j < tower.height; j++) {
 				const row = tower.upr ? defaults.grid.height - 1 - j : j;
-				grid[row][tower.position] = color;
+				grid[row][tower.position] = { color };
 			}
 		}
 
 		if (bird.height >= 0 && bird.height < defaults.grid.height) {
 			const flyer = flyers[settings.flyerIndex];
-			grid[bird.height][bird.position] = flyerImage(
+			grid[bird.height][bird.position].image = flyerImage(
 				flapping ? flyer.start : flyer.end,
-				settings.backColor,
 			);
 		}
 		return grid;
@@ -314,6 +359,13 @@ class Game extends Component<Record<string, never>, GameState> {
 		}));
 	};
 
+	private toggleTheme = (event: MouseEvent) => {
+		event.stopPropagation();
+		this.handleSettingsChange({
+			theme: this.state.settings.theme === "dark" ? "light" : "dark",
+		});
+	};
+
 	private pause = (event: MouseEvent) => {
 		event.stopPropagation();
 		this.setState({ paused: true });
@@ -334,6 +386,9 @@ class Game extends Component<Record<string, never>, GameState> {
 	render() {
 		return (
 			<div onClick={this.handleClick}>
+				<button onClick={this.toggleTheme}>
+					{this.state.settings.theme === "dark" ? "Light mode" : "Dark mode"}
+				</button>
 				{this.state.paused ? (
 					<SettingsPanel
 						settings={this.state.settings}
@@ -346,7 +401,7 @@ class Game extends Component<Record<string, never>, GameState> {
 				) : (
 					<button onClick={this.pause}>Pause</button>
 				)}
-				<Grid grid={this.makeGrid()} />
+				<Grid grid={this.makeGrid()} theme={this.state.settings.theme} />
 				{this.state.crashed ? (
 					<button onClick={this.restart}>Click to Restart</button>
 				) : (

@@ -6,10 +6,18 @@ export interface Flyer {
 	end: string;
 }
 
-export interface Settings {
-	pipeGap: number;
+export type Theme = "light" | "dark";
+
+export interface Colors {
 	backColor: string;
 	towerColors: string[];
+}
+
+export interface Settings {
+	pipeGap: number;
+	theme: Theme;
+	// Each theme keeps its own colors; the panel edits the active theme's.
+	colors: Record<Theme, Colors>;
 	flyerIndex: number;
 }
 
@@ -46,18 +54,24 @@ export function SettingsPanel({
 	onAddFlyer,
 	onResume,
 }: SettingsPanelProps) {
-	const { towerColors } = settings;
+	const colors = settings.colors[settings.theme];
+	const { towerColors } = colors;
+
+	const setColors = (changes: Partial<Colors>) =>
+		onChange({
+			colors: { ...settings.colors, [settings.theme]: { ...colors, ...changes } },
+		});
 
 	const setTowerColor = (index: number, color: string) =>
-		onChange({
+		setColors({
 			towerColors: towerColors.map((c, i) => (i === index ? color : c)),
 		});
 
 	const removeTowerColor = (index: number) =>
-		onChange({ towerColors: towerColors.filter((_, i) => i !== index) });
+		setColors({ towerColors: towerColors.filter((_, i) => i !== index) });
 
 	const addTowerColor = () =>
-		onChange({ towerColors: [...towerColors, towerColors[towerColors.length - 1]] });
+		setColors({ towerColors: [...towerColors, towerColors[towerColors.length - 1]] });
 
 	const handleAddFlyer = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -96,8 +110,8 @@ export function SettingsPanel({
 				Background:
 				<input
 					type="color"
-					value={settings.backColor}
-					onChange={(e) => onChange({ backColor: e.target.value })}
+					value={colors.backColor}
+					onChange={(e) => setColors({ backColor: e.target.value })}
 				/>
 			</label>
 			<div style={rowStyle}>

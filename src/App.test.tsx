@@ -106,6 +106,53 @@ describe('App', () => {
     });
   });
 
+  describe('dark mode', () => {
+    const flyerLayer = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>('[style*="url("]')!;
+    const flyerRow = (container: HTMLElement) => {
+      const row = flyerLayer(container).parentElement!.parentElement!;
+      return [...row.parentElement!.children].indexOf(row);
+    };
+    const backgroundPicker = () => screen.getByLabelText('Background:') as HTMLInputElement;
+
+    it('starts in light mode with the flyer as-is', () => {
+      const { container } = render(<App />);
+      expect(screen.getByRole('button', { name: 'Dark mode' })).toBeInTheDocument();
+      expect(document.body).not.toHaveClass('dark');
+      expect(flyerLayer(container).style.filter).toBe('');
+    });
+
+    it('darkens the page and grid and inverts the flyer', () => {
+      const { container, unmount } = render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+      expect(screen.getByRole('button', { name: 'Light mode' })).toBeInTheDocument();
+      expect(document.body).toHaveClass('dark');
+      expect(flyerLayer(container).style.filter).toBe('invert(1)');
+      // The cell behind the flyer keeps the background color, uninverted.
+      expect(flyerLayer(container).parentElement!.style.background).toBe('rgb(30, 38, 51)');
+
+      unmount();
+      expect(document.body).not.toHaveClass('dark');
+    });
+
+    it('keeps separate colors for each theme', () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+      fireEvent.change(backgroundPicker(), { target: { value: '#000000' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Light mode' }));
+      expect(backgroundPicker().value).toBe('#c9d7e8');
+      fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+      expect(backgroundPicker().value).toBe('#000000');
+    });
+
+    it('toggles mid-game without flapping', () => {
+      const { container } = render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+      expect(flyerRow(container)).toBe(10);
+    });
+  });
+
   it('keeps at least one pipe color', () => {
     render(<App />);
     for (let i = 6; i > 1; i--) {
