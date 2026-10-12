@@ -94,6 +94,17 @@ function towerCovers(tower: Tower, row: number) {
 		: row < tower.height;
 }
 
+function collides(bird: Bird, towers: Tower[]) {
+	return (
+		bird.height >= defaults.grid.height ||
+		bird.height < 0 ||
+		towers.some(
+			(tower) =>
+				tower.position === bird.position && towerCovers(tower, bird.height),
+		)
+	);
+}
+
 function towerColor(tower: Tower, towerColors: string[]) {
 	return towerColors[Math.floor(tower.colorSeed * towerColors.length)];
 }
@@ -163,46 +174,41 @@ class Game extends Component<Record<string, never>, GameState> {
 		}
 	}
 
+	// Uses an updater so ticks that fire before a render still build on each other.
 	private tick = () => {
-		if (this.state.crashed || this.state.paused) {
-			return;
-		}
+		this.setState((state) => {
+			if (state.crashed || state.paused) {
+				return null;
+			}
 
-		const towers = this.moveTowers(
-			this.state.towers,
-			this.state.settings.pipeGap,
-		);
-		const bird = {
-			...this.state.bird,
-			height: this.state.bird.height + 1,
-		};
-		const crashed =
-			bird.height >= defaults.grid.height ||
-			bird.height < 0 ||
-			towers.some(
-				(tower) =>
-					tower.position === bird.position &&
-					towerCovers(tower, bird.height),
-			);
-
-		if (crashed) {
-			bird.height = defaults.bird.height;
-		}
-
-		const score = this.state.score + 1;
-		const highScore =
-			crashed && score > this.state.highScore
-				? score
-				: this.state.highScore;
-		this.setState({
-			bird,
-			towers,
-			flapping: false,
-			crashed,
-			score,
-			highScore,
+			const towers = this.moveTowers(state.towers, state.settings.pipeGap);
+			const bird = { ...state.bird, height: state.bird.height + 1 };
+			const score = state.score + 1;
+			return collides(bird, towers)
+				? { ...this.crash(state, score), towers }
+				: { ...this.fly(state, bird), towers, score };
 		});
 	};
+
+	private fly(state: GameState, bird: Bird) {
+		return {
+			bird,
+			flapping: bird.height < state.bird.height,
+			crashed: false,
+			score: state.score,
+			highScore: state.highScore,
+		};
+	}
+
+	private crash(state: GameState, score: number) {
+		return {
+			bird: { ...state.bird, height: defaults.bird.height },
+			flapping: false,
+			crashed: true,
+			score,
+			highScore: Math.max(state.highScore, score),
+		};
+	}
 
 	private getRandTowerHeight() {
 		return rand(defaults.tower.maxHeight, defaults.tower.minHeight);
@@ -275,13 +281,18 @@ class Game extends Component<Record<string, never>, GameState> {
 			return;
 		}
 
-		this.setState((state) => ({
-			bird: {
-				...state.bird,
-				height: state.bird.height - defaults.bird.boost,
-			},
-			flapping: true,
-		}));
+		this.setState((state) => {
+			// Check every row the flap passes through, so it can't jump into or
+			// over a tower between ticks.
+			const bird = { ...state.bird };
+			for (let i = 0; i < defaults.bird.boost; i++) {
+				bird.height--;
+				if (collides(bird, state.towers)) {
+					return this.crash(state, state.score);
+				}
+			}
+			return this.fly(state, bird);
+		});
 	};
 
 	private handleSettingsChange = (changes: Partial<Settings>) => {
