@@ -26,6 +26,11 @@ export interface Settings {
 export const pipeGapRange = { min: 2, max: 16 };
 export const speedRange = { min: 2, max: 12 };
 
+// Harder settings score more: 10 points per step at the default speed (5) and
+// gap (4), doubling with twice the speed or half the gap.
+export const pointsPerStep = ({ speed, pipeGap }: Settings) =>
+	Math.round((8 * speed) / pipeGap);
+
 interface SettingsPanelProps {
 	settings: Settings;
 	flyers: Flyer[];
@@ -55,6 +60,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
 	const colors = settings.colors[settings.theme];
 	const { towerColors } = colors;
+	const points = pointsPerStep(settings);
 
 	const setColors = (changes: Partial<Colors>) =>
 		onChange({
@@ -116,6 +122,7 @@ export function SettingsPanel({
 				/>
 				<output>{settings.speed}</output>
 			</label>
+			<span>{`${points} ${points === 1 ? "point" : "points"} per step`}</span>
 			<label style={rowStyle}>
 				Background:
 				<input

@@ -41,11 +41,11 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(settingsPanel()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
     act(() => vi.advanceTimersByTime(1000));
-    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
     expect(settingsPanel()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
   });
@@ -66,7 +66,44 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/Speed/), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByText('2')).toBeInTheDocument();
+    // Two steps at 20 points each.
+    expect(screen.getByText('40')).toBeInTheDocument();
+  });
+
+  describe('scoring', () => {
+    it('scores 10 points per step at the default speed and gap', () => {
+      render(<App />);
+      expect(screen.getByText('10 points per step')).toBeInTheDocument();
+    });
+
+    it('scores more for a higher speed and a smaller gap', () => {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText(/Speed/), { target: { value: '10' } });
+      expect(screen.getByText('20 points per step')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/Pipe gap/), { target: { value: '2' } });
+      expect(screen.getByText('40 points per step')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      act(() => vi.advanceTimersByTime(100));
+      expect(screen.getByText('40')).toBeInTheDocument();
+    });
+
+    it('scores less for a lower speed and a wider gap', () => {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText(/Speed/), { target: { value: '2' } });
+      fireEvent.change(screen.getByLabelText(/Pipe gap/), { target: { value: '16' } });
+      expect(screen.getByText('1 point per step')).toBeInTheDocument();
+    });
+
+    it('scores each step at the settings in effect for it', () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      act(() => vi.advanceTimersByTime(200)); // 10
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      fireEvent.change(screen.getByLabelText(/Speed/), { target: { value: '10' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+      act(() => vi.advanceTimersByTime(100)); // + 20
+      expect(screen.getByText('30')).toBeInTheDocument();
+    });
   });
 
   describe('spacebar', () => {

@@ -1,6 +1,12 @@
 import { Component, type CSSProperties, type MouseEvent } from "react";
 import "./App.css";
-import { type Flyer, type Settings, SettingsPanel, type Theme } from "./Settings";
+import {
+	type Flyer,
+	pointsPerStep,
+	type Settings,
+	SettingsPanel,
+	type Theme,
+} from "./Settings";
 
 const defaultFlyers: Flyer[] = [
 	{ name: "Pterodactyl", start: "flyer-close.png", end: "flyer-open.png" },
@@ -243,7 +249,7 @@ class Game extends Component<Record<string, never>, GameState> {
 
 			const towers = this.moveTowers(state.towers, state.settings.pipeGap);
 			const bird = { ...state.bird, height: state.bird.height + 1 };
-			const score = state.score + 1;
+			const score = state.score + pointsPerStep(state.settings);
 			return collides(bird, towers)
 				? { ...this.crash(state, score), towers }
 				: { ...this.fly(state, bird), towers, score };
